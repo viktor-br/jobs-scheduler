@@ -2,9 +2,9 @@ Simple jobs scheduler, which runs predefined number of processors, accepts new j
 send logs and results to user functions. When shutdown gracefully complete all running jobs, log and results messages and exit.
 
 ```go
-// Example of using jobs scheduler. Read simple jobs from file if it was saved, schedule jobs. Then read string from
-// stdin and schedule new job. On each start remove the log file. When user input `exit` phrase gracefully shutdown
-// scheduler and exit.
+// Example of using jobs scheduler. Read simple jobs from file if it was saved, schedule jobs. Then read 
+// string from stdin and schedule new job. On each start remove the log file. When user input 'exit', 
+// gracefully shutdown scheduler and exit.
 package main
 
 import (
