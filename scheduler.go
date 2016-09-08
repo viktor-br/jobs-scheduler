@@ -9,7 +9,7 @@ import (
 // Job describes interface, which used by job processor. Scheduler requires only getID() method, which should provide
 // unique identifier.
 type Job interface {
-	getID() string
+	GetID() string
 }
 
 // JobResult result of processor.
