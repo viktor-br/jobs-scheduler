@@ -12,7 +12,7 @@ type Job interface {
 	GetID() string
 }
 
-// JobResult result of processor.
+// JobResult represents result of processing.
 // - IsDone() should return true if job successfully done.
 // - IsCorrupted() should return true if job failed and no need to restart.
 type JobResult interface {
@@ -97,7 +97,7 @@ func (scheduler *JobsScheduler) AddResultOutput(output func(JobResult)) {
 }
 
 // Add append new job to scheduler to process.
-func (scheduler *JobsScheduler) Add(job Job) (error) {
+func (scheduler *JobsScheduler) Add(job Job) error {
 	if job == nil {
 		return fmt.Errorf("Empty job not allowed")
 	}
@@ -126,17 +126,14 @@ func (scheduler *JobsScheduler) GetUncompletedJobs() map[string]Job {
 func (scheduler *JobsScheduler) Run() {
 	go processLogMsg(scheduler)
 
-	// jobs goroutine is responsible for accumulating all jobs (interaction with remote server) and schedule
-	// its processing, in case of exit or remote server unavailability -- save jobs to a filesystem for later
-	// execute.
 	go scheduleJobs(scheduler)
 
-	// Logger goroutine
 	for i := int64(0); i < scheduler.config.processorsNum; i++ {
 		go processJob(scheduler, i)
 	}
 }
-// Wait properly shutdown of scheduler.
+
+// Wait properly shutdown of a scheduler.
 func (scheduler *JobsScheduler) Wait() {
 	scheduler.wg.Wait()
 	// Send signal to close jobs goroutine
@@ -150,12 +147,12 @@ func (scheduler *JobsScheduler) Wait() {
 }
 
 // processLogMsg controls log file, receives msg from goroutine. When signal of done received, read all messages from
-// logs channel and exit.
+// logs channel and exit. Should be run in one goroutine only.
 func processLogMsg(scheduler *JobsScheduler) {
 	sendMsgFunc := func(str string) {
 		if scheduler.loggers != nil {
 			for _, fn := range scheduler.loggers {
-				go fn(str) // fire and forget
+				go fn(str) // fire and forget (needs refactoring)
 			}
 		}
 	}
@@ -178,7 +175,7 @@ func processLogMsg(scheduler *JobsScheduler) {
 
 // scheduleJobs put jobs to channel for processors. Read results channel
 // and exclude done job from its map of sent jobs. Read incoming jobs and if free processors available put next job to
-// the channel. When signal of done received, wait for all results and exit.
+// the channel. When signal of done received, wait for all results and exit. Should be run in one goroutine only.
 func scheduleJobs(scheduler *JobsScheduler) {
 	counter := int64(0)
 	var jobUnit Task
@@ -199,7 +196,7 @@ func scheduleJobs(scheduler *JobsScheduler) {
 		select {
 		case <-scheduler.jobsDone:
 			scheduler.loggerChannel <- fmt.Sprintf("scheduler: exit signal received")
-		// Save jobs to the file
+			// Save jobs to the file
 			for k, v := range scheduler.jobsSent {
 				scheduler.jobsScheduled[k] = v
 			}
@@ -207,7 +204,7 @@ func scheduleJobs(scheduler *JobsScheduler) {
 			scheduler.jobsDone <- struct{}{}
 			return
 		case job := <-scheduler.jobsChannel:
-		// Try to put job to processor channel (ch)
+			// Try to put job to processor channel (ch)
 			scheduler.jobsScheduled[job.ID] = job
 			scheduler.loggerChannel <- fmt.Sprintf("scheduler: %s added to the queue", job.ID)
 			if counter < scheduler.config.processorsNum {
@@ -222,7 +219,7 @@ func scheduleJobs(scheduler *JobsScheduler) {
 			if (jobResultUnit.jobResult != nil && jobResultUnit.jobResult.IsDone() && !jobResultUnit.jobResult.IsCorrupted()) || jobUnit.tries >= scheduler.config.maxTries {
 				if scheduler.resultOutputs != nil {
 					for _, fn := range scheduler.resultOutputs {
-						go fn(jobResultUnit.jobResult) // fire and forget
+						go fn(jobResultUnit.jobResult) // fire and forget (needs refactoring)
 					}
 				}
 			} else {
@@ -247,23 +244,23 @@ func processJob(scheduler *JobsScheduler, index int64) {
 	for {
 		select {
 		case <-scheduler.processorsDone:
-		// Done
+			// Done
 			scheduler.loggerChannel <- fmt.Sprintf("processor #%d: exit signal received", index)
 			return
 		case jobUnit := <-scheduler.processorsChannel:
-		// Got new job
+			// Got new job
 			scheduler.loggerChannel <- fmt.Sprintf("processor #%d: %s started", index, jobUnit.ID)
 			res := scheduler.processor(jobUnit.job)
 			jobUnit.tries++
 			scheduler.loggerChannel <- fmt.Sprintf("processor #%d: %s completed", index, jobUnit.ID)
 
 			jobResultUnit := TaskResult{jobUnit.ID, res}
-				select {
-				case scheduler.resultsChannel <- jobResultUnit:
-					scheduler.loggerChannel <- fmt.Sprintf("processor #%d: %s result pushed successfully", index, jobUnit.ID)
-				default:
-					scheduler.loggerChannel <- fmt.Sprintf("processor #%d: %s result push failed", index, jobUnit.ID)
-				}
+			select {
+			case scheduler.resultsChannel <- jobResultUnit:
+				scheduler.loggerChannel <- fmt.Sprintf("processor #%d: %s result pushed successfully", index, jobUnit.ID)
+			default:
+				scheduler.loggerChannel <- fmt.Sprintf("processor #%d: %s result push failed", index, jobUnit.ID)
+			}
 		}
 	}
 }
