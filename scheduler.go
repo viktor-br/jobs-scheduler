@@ -6,7 +6,7 @@ import (
 	"sync"
 )
 
-// Job describes interface, which used by job processor. Scheduler requires only getID() method, which should provide
+// Job describes interface, which used by job processor. Scheduler requires only GetID() method, which should provide
 // unique identifier.
 type Job interface {
 	GetID() string
@@ -104,10 +104,10 @@ func (scheduler *JobsScheduler) Add(job Job) (error) {
 	jobUnit := Task{ID: uuid.NewV4().String(), tries: 0, job: job}
 	select {
 	case scheduler.jobsChannel <- jobUnit:
-		scheduler.loggerChannel <- fmt.Sprintf("%s scheduled successfully", jobUnit.job.getID())
+		scheduler.loggerChannel <- fmt.Sprintf("%s scheduled successfully", jobUnit.job.GetID())
 	default:
-		scheduler.loggerChannel <- fmt.Sprintf("%s could not be scheduled", jobUnit.job.getID())
-		return fmt.Errorf("Internal error. Unable to schedule job: %s", jobUnit.job.getID())
+		scheduler.loggerChannel <- fmt.Sprintf("%s could not be scheduled", jobUnit.job.GetID())
+		return fmt.Errorf("Internal error. Unable to schedule job: %s", jobUnit.job.GetID())
 	}
 
 	return nil
