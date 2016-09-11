@@ -13,11 +13,11 @@ type Job interface {
 }
 
 // JobResult represents result of processing.
-// - getJobID() should return job id
+// - GetJobID() should return job id
 // - IsDone() should return true if job successfully done.
 // - IsCorrupted() should return true if job failed and no need to restart.
 type JobResult interface {
-	getJobID() string
+	GetJobID() string
 	IsDone() bool
 	IsCorrupted() bool
 }
