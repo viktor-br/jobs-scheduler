@@ -162,13 +162,12 @@ func processLogMsg(scheduler *JobsScheduler) {
 		select {
 		case str := <-scheduler.loggerChannel:
 			sendMsgFunc(str)
-
 		case <-scheduler.loggerDone:
-			scheduler.loggerChannel <- fmt.Sprintf("log processor: exit signal received")
 			close(scheduler.loggerChannel)
 			for msg := range scheduler.loggerChannel {
 				sendMsgFunc(msg)
 			}
+			sendMsgFunc(fmt.Sprintf("log processor: terminated"))
 			scheduler.loggerDone <- struct{}{}
 			return
 		}
