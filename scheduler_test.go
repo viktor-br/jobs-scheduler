@@ -74,26 +74,6 @@ func TestScheduleJobs(t *testing.T) {
 		fmt.Sprintf("scheduler: %s result received", jobResultUnit.taskID),
 		scheduler.loggerChannel,
 	)
-	scheduler.resultsChannel <- jobResultUnit
-	assertLoggerChannelMsg(
-		t,
-		"No message scheduler received result",
-		fmt.Sprintf("scheduler: %s result received", jobResultUnit.taskID),
-		scheduler.loggerChannel,
-	)
-	scheduler.resultsChannel <- jobResultUnit
-	//assertLoggerChannelMsg(
-	//	t,
-	//	"No message scheduler received result",
-	//	fmt.Sprintf("scheduler: %s result received", jobResultUnit.taskID),
-	//	scheduler.loggerChannel,
-	//)
-	//assertLoggerChannelMsg(
-	//	t,
-	//	"Scheduler didn't reschedule job",
-	//	fmt.Sprintf("scheduler: %s rescheduled", jobResultUnit.taskID),
-	//	scheduler.loggerChannel,
-	//)
 
 	// Send terminate signal
 	scheduler.jobsDone <- struct{}{}
@@ -103,8 +83,8 @@ func TestScheduleJobs(t *testing.T) {
 		t.Errorf("scheduleJobs didn't exit after 2 seconds")
 	}
 
-	if resultsNum != 3 {
-		t.Errorf("Output results number id %d, expected %d", resultsNum, 3)
+	if resultsNum != 1 {
+		t.Errorf("Output results number id %d, expected %d", resultsNum, 1)
 	}
 }
 
