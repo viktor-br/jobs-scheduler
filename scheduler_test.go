@@ -43,7 +43,7 @@ func (jobResult JobResultTest) IsCorrupted() bool {
 }
 
 func TestScheduleJobs(t *testing.T) {
-	var resultsNum int64 = 0
+	var resultsNum int64
 	scheduler := NewJobsScheduler(func(job Job) JobResult {
 		jobResult := JobResultTest{}
 
