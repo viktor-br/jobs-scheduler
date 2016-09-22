@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/satori/go.uuid"
 	"strings"
-	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -40,6 +40,72 @@ func (jobResult JobResultTest) IsDone() bool {
 // IsCorrupted implement JobResult interface
 func (jobResult JobResultTest) IsCorrupted() bool {
 	return false
+}
+
+func TestScheduleJobs(t *testing.T) {
+	var resultsNum int64 = 0
+	scheduler := NewJobsScheduler(func(job Job) JobResult {
+		jobResult := JobResultTest{}
+
+		return jobResult
+	})
+
+	scheduler.AddResultOutput(func(res JobResult) {
+		atomic.AddInt64(&resultsNum, 1)
+	})
+
+	go scheduleJobs(scheduler)
+	job := JobTest{uuid.NewV4().String()}
+	jobUnit := Task{ID: uuid.NewV4().String(), tries: 0, job: job}
+	scheduler.jobsChannel <- jobUnit
+	assertLoggerChannelMsg(
+		t,
+		"No message job added to a queue",
+		fmt.Sprintf("scheduler: %s added to the queue", jobUnit.ID),
+		scheduler.loggerChannel,
+	)
+
+	res := JobResultTest{job: job}
+	jobResultUnit := TaskResult{jobUnit.ID, res}
+	scheduler.resultsChannel <- jobResultUnit
+	assertLoggerChannelMsg(
+		t,
+		"No message scheduler received result",
+		fmt.Sprintf("scheduler: %s result received", jobResultUnit.taskID),
+		scheduler.loggerChannel,
+	)
+	scheduler.resultsChannel <- jobResultUnit
+	assertLoggerChannelMsg(
+		t,
+		"No message scheduler received result",
+		fmt.Sprintf("scheduler: %s result received", jobResultUnit.taskID),
+		scheduler.loggerChannel,
+	)
+	scheduler.resultsChannel <- jobResultUnit
+	//assertLoggerChannelMsg(
+	//	t,
+	//	"No message scheduler received result",
+	//	fmt.Sprintf("scheduler: %s result received", jobResultUnit.taskID),
+	//	scheduler.loggerChannel,
+	//)
+	//assertLoggerChannelMsg(
+	//	t,
+	//	"Scheduler didn't reschedule job",
+	//	fmt.Sprintf("scheduler: %s rescheduled", jobResultUnit.taskID),
+	//	scheduler.loggerChannel,
+	//)
+
+	// Send terminate signal
+	scheduler.jobsDone <- struct{}{}
+	select {
+	case <-scheduler.jobsDone:
+	case <-time.After(2 * time.Second):
+		t.Errorf("scheduleJobs didn't exit after 2 seconds")
+	}
+
+	if resultsNum != 3 {
+		t.Errorf("Output results number id %d, expected %d", resultsNum, 3)
+	}
 }
 
 func TestProcessJob(t *testing.T) {
@@ -93,17 +159,14 @@ func TestProcessJob(t *testing.T) {
 }
 
 func TestProcessLogMsg(t *testing.T) {
-	logMessages := []string{}
-	mu := sync.Mutex{}
+	logMessagesLen := int64(0)
 	scheduler := NewJobsScheduler(func(job Job) JobResult {
 		jobResult := JobResultTest{}
 
 		return jobResult
 	})
 	scheduler.AddLogger(func(msg string) {
-		mu.Lock()
-		logMessages = append(logMessages, msg)
-		mu.Unlock()
+		atomic.AddInt64(&logMessagesLen, 1)
 	})
 
 	go processLogMsg(scheduler)
@@ -118,9 +181,8 @@ func TestProcessLogMsg(t *testing.T) {
 		t.Errorf("processLogMsg didn't exit after 2 seconds")
 
 	}
-	// TODO We run 101 goroutines without any completion notification, so put sleep for 1 second.
+	// TODO We run 101 goroutines without completion handling, so put sleep for 1 second.
 	time.Sleep(1 * time.Second)
-	logMessagesLen := len(logMessages)
 	if logMessagesLen != 101 {
 		t.Errorf("Expects the logger processed 101 elements, but %d given", logMessagesLen)
 	}
